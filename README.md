@@ -1,0 +1,255 @@
+# 🧠 Quiz Processor (OpenRouter + Vision)
+
+Скрипт для автоматической обработки фотографий викторин и тестов: извлекает текст вопроса и вариантов ответа, находит правильный ответ, даёт краткое обоснование и указывает степень уверенности.
+
+Использует облачные AI-модели через [OpenRouter](https://openrouter.ai?utm_source=chatgpt.com) — мощное железо не требуется, всё работает через API.
+
+---
+
+# 📋 Что делает скрипт
+
+1. Читает все изображения (`.jpg`, `.jpeg`, `.png`) из указанной папки.
+2. Отправляет каждое фото в Vision-модель (`qwen/qwen3-vl-8b-instruct`), которая извлекает весь текст:
+   - вопрос,
+   - варианты ответов.
+3. Передаёт текст текстовой модели (`meta-llama/llama-3.1-8b-instruct`), которая:
+   - выделяет точный вопрос,
+   - выбирает правильный ответ **из предложенных вариантов**,
+   - пишет краткое обоснование на русском языке,
+   - оценивает уверенность от `0` до `1`.
+4. Сохраняет результат:
+   - в Excel-файл,
+   - параллельно в промежуточный CSV (на случай сбоя).
+5. Автоматически исправляет «битые» JSON-ответы модели.
+
+---
+
+# 📦 Требования
+
+- Python 3.9+
+- API-ключ OpenRouter
+- Установленные зависимости
+
+---
+
+# 🚀 Быстрый старт
+
+## 1. Клонируйте репозиторий
+
+```bash
+git clone <ваш-репозиторий>
+cd quiz-processor
+```
+
+---
+
+## 2. Установите зависимости
+
+```bash
+pip install -r requirements.txt
+```
+
+### Содержимое `requirements.txt`
+
+```text
+requests
+pandas
+Pillow
+tqdm
+python-dotenv
+openpyxl
+```
+
+---
+
+## 3. Получите API-ключ OpenRouter
+
+1. Зарегистрируйтесь на [OpenRouter](https://openrouter.ai?utm_source=chatgpt.com)
+2. Перейдите в раздел **Keys**
+3. Создайте новый ключ
+4. Скопируйте его
+
+---
+
+## 4. Настройте переменные окружения
+
+Создайте файл `.env` в корне проекта:
+
+```env
+OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
+```
+
+> 🔒 Никогда не публикуйте `.env` и не загружайте его в Git.
+
+---
+
+## 5. Подготовьте изображения
+
+Создайте папку (по умолчанию — `ledo` на рабочем столе) и поместите туда все фотографии викторины.
+
+Скрипт автоматически сортирует изображения по алфавиту.
+
+### Изменение пути
+
+```python
+IMAGE_FOLDER = "/Users/salijalex/Desktop/ledo"
+```
+
+---
+
+## 6. Запустите обработку
+
+```bash
+python openrouter_quiz_processor.py
+```
+
+После обработки появится:
+
+- `quiz_results.xlsx`
+- `quiz_results_progress.csv`
+
+---
+
+# 📊 Структура итоговой таблицы
+
+| question_number | question_text | answer | justification | confidence |
+|---|---|---|---|---|
+| 1 | Какого цвета небо? | Голубое | Рэлеевское рассеяние света... | 0.95 |
+
+### Описание полей
+
+- `question_number` — номер вопроса
+- `question_text` — текст вопроса
+- `answer` — правильный ответ
+- `justification` — краткое объяснение
+- `confidence` — уверенность модели (`0–1`)
+
+---
+
+# ⚙️ Настройка под себя
+
+## Выбор моделей
+
+### Vision-модель
+
+Отвечает за чтение текста с изображений.
+
+```python
+VISION_MODEL = "qwen/qwen3-vl-8b-instruct"
+# VISION_MODEL = "google/gemini-2.0-flash-lite-001"
+```
+
+### Текстовая модель
+
+Отвечает за анализ вопроса и выбор ответа.
+
+```python
+TEXT_MODEL = "meta-llama/llama-3.1-8b-instruct"
+
+# Более мощные альтернативы:
+# TEXT_MODEL = "qwen/qwen3-next-80b-a3b-instruct"
+# TEXT_MODEL = "meta-llama/llama-3.3-70b-instruct"
+```
+
+---
+
+## Паузы и лимиты
+
+Если возникает ошибка `429 Too Many Requests`:
+
+- увеличьте `SLEEP_BETWEEN_IMAGES`,
+- используйте платные модели,
+- либо уменьшите частоту запросов.
+
+---
+
+# 🔧 Возможные ошибки и решения
+
+| Симптом | Причина | Решение |
+|---|---|---|
+| ❌ Не найден `OPENROUTER_API_KEY` | Нет `.env` | Создайте `.env` и добавьте ключ |
+| ⚠️ Ошибка `429` | Лимит запросов | Увеличьте задержку или используйте платные модели |
+| Вместо вопроса выводится `Вопрос 1` | Неверный JSON | Обновите скрипт |
+| Ответ не из вариантов | Слабая модель | Используйте более мощную `TEXT_MODEL` |
+| Ошибка парсинга JSON | Неверный формат ответа модели | Используйте скрипт-фикс ниже |
+
+---
+
+# 🛠 Скрипт исправления битых JSON
+
+```python
+import pandas as pd
+import json
+
+df = pd.read_excel("quiz_results.xlsx")
+
+for i, row in df.iterrows():
+    if "Ошибка парсинга JSON" in str(row["answer"]):
+        try:
+            data = json.loads(row["justification"])
+
+            df.at[i, "question_text"] = data.get(
+                "question",
+                row["question_text"]
+            )
+
+            df.at[i, "answer"] = data.get(
+                "answer",
+                row["answer"]
+            )
+
+            df.at[i, "justification"] = data.get(
+                "justification",
+                row["justification"]
+            )
+
+            df.at[i, "confidence"] = data.get(
+                "confidence",
+                row["confidence"]
+            )
+
+        except:
+            pass
+
+df.to_excel("quiz_results_fixed.xlsx", index=False)
+```
+
+---
+
+# 💰 Стоимость
+
+## Пример: 200 изображений
+
+| Модель | Стоимость |
+|---|---|
+| Vision (`qwen3-vl-8b-instruct`) | ≈ $0.05 |
+| Text (`llama-3.1-8b-instruct`) | ≈ $0.01 |
+| **Итого** | **< $0.10** |
+
+При использовании моделей с `:free` стоимость может быть `0`, но возможны:
+
+- задержки,
+- ограничения,
+- нестабильность.
+
+---
+
+# 📝 Примечания
+
+- Все вопросы и ответы обрабатываются на русском языке.
+- Скрипт автоматически:
+  - очищает markdown,
+  - исправляет лишние кавычки,
+  - чинит экранирование JSON.
+- CSV сохраняется после каждого изображения, поэтому данные не потеряются даже при сбое.
+
+---
+
+# 🔗 Полезные ссылки
+
+- [OpenRouter](https://openrouter.ai?utm_source=chatgpt.com)
+- [Python.org](https://www.python.org?utm_source=chatgpt.com)
+- [Pandas Documentation](https://pandas.pydata.org/docs/?utm_source=chatgpt.com)
+- [OpenPyXL Documentation](https://openpyxl.readthedocs.io/en/stable/?utm_source=chatgpt.com)
+
+---
