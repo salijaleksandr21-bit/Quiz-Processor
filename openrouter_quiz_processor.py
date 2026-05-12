@@ -15,7 +15,7 @@ API_KEY = os.getenv("OPENROUTER_API_KEY")
 if not API_KEY:
     raise RuntimeError("❌ Не найден OPENROUTER_API_KEY в переменных окружения")
 
-IMAGE_FOLDER = "/Users/salijalex/Desktop/ledo"
+IMAGE_FOLDER = "путь_к_папке"
 OUTPUT_FILE = "quiz_results"
 SLEEP_BETWEEN_IMAGES = 3          # пауза после каждого запроса
 MAX_RETRIES = 3
