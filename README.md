@@ -92,7 +92,7 @@ OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
 ### Изменение пути
 
 ```python
-IMAGE_FOLDER = "/Users/salijalex/Desktop/ledo"
+IMAGE_FOLDER = "путь_к_папке"
 ```
 
 ---
