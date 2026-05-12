@@ -177,42 +177,15 @@ TEXT_MODEL = "meta-llama/llama-3.1-8b-instruct"
 
 # 🛠 Скрипт исправления битых JSON
 
-```python
-import pandas as pd
-import json
-
-df = pd.read_excel("quiz_results.xlsx")
-
-for i, row in df.iterrows():
-    if "Ошибка парсинга JSON" in str(row["answer"]):
-        try:
-            data = json.loads(row["justification"])
-
-            df.at[i, "question_text"] = data.get(
-                "question",
-                row["question_text"]
-            )
-
-            df.at[i, "answer"] = data.get(
-                "answer",
-                row["answer"]
-            )
-
-            df.at[i, "justification"] = data.get(
-                "justification",
-                row["justification"]
-            )
-
-            df.at[i, "confidence"] = data.get(
-                "confidence",
-                row["confidence"]
-            )
-
-        except:
-            pass
-
-df.to_excel("quiz_results_fixed.xlsx", index=False)
+В случае возникновения ошибок парсинга вида 
+```{
+"question":
+"answer":
+"justification":
+"confidence":
 ```
+запустите скрип `fix.py`
+он исправит все или почти все ошибки
 
 ---
 
